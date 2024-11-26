@@ -5,16 +5,6 @@ import anthropic
 import os
 import logging
 import subprocess
-from prompts import (
-    lego_prompts,
-    compiler_annotation_prompts,
-    compiler_prompts,
-    compiler_short_prompts,
-    decompiler_prompts,
-    code_translator_prompts,
-    emnlp_baseline_prompts,
-    fix_prompts,
-)
 from config import (
     PPLX_AVAILABLE_MODELS,
     PPLX_API_KEY,
@@ -165,7 +155,7 @@ class Chat:
             self.client = self.local_model
         else:
             self.client = self.ollama_client
-        self.system_prompt = compiler_prompts["general"]
+        self.system_prompt = """You are a helpful assistant. You will follow the user's instructions to complete the task."""
         initial_messages = [
             {
                 "role": "system",
@@ -176,6 +166,9 @@ class Chat:
         if self.model in ANTHROPIC_AVAILABLE_MODELS:
             self.messages = []
 
+    """
+    reset the messages, only keep the system prompt, which clear the chat history
+    """
     def message_reset(self):
         initial_messages = [
             {
@@ -256,29 +249,6 @@ class Compiler(Chat):
         super().__init__(
             model, use_local=use_local, temperature=temperature, peft_model=peft_model
         )
-        self.full_prompt = (
-            compiler_annotation_prompts["description"]
-            + compiler_annotation_prompts["example"]
-        )
-
-        self.lego_prompt = lego_prompts["description"] + lego_prompts["example"]
-
-        self.simplified_prompt = (
-            compiler_short_prompts["general"]
-            + compiler_short_prompts["mission"]
-            + compiler_short_prompts["code_format"]
-            + compiler_short_prompts["code_example"]
-        )
-        if use_zero_shot_prompt:
-            self.simplified_prompt = emnlp_baseline_prompts["general"]
-            self.use_one_shot_prompt = True
-            use_one_shot_prompt = True
-        if use_one_shot_prompt:
-            self.system_prompt = self.simplified_prompt
-            self.use_one_shot_prompt = True
-        else:
-            self.system_prompt = self.full_prompt
-            self.use_one_shot_prompt = False
 
         query_size = num_token_from_string(self.system_prompt)
         logging.info(f"LLM default prompt size: {query_size}")
@@ -308,28 +278,18 @@ class Compiler(Chat):
         self.chat(user_input=code, temperature=self.temperature)
         compiler_rsp = self.messages[-1]["content"]
         logging.debug(f"###LLM response: \n{compiler_rsp}")
-        self.assemble(compiler_rsp, out=out)
+        self.assemble(compiler_rsp, out=out, header="```x86")
         # reset the messages
         if reset_messages:
             self.message_reset()
 
-    def assemble(self, compiler_rsp, out="tmp.s", generate_binary=False):
-        if "```x86" in compiler_rsp:
-            x86_code = compiler_rsp.split("```x86")[1].split("```")
-            if len(x86_code) > 0:
-                x86_code = x86_code[0]
-            logging.info(f"x86 code: \n{x86_code}")
+    def assemble(self, compiler_rsp, out="tmp.s", header="```x86"):
+        if header in compiler_rsp:
+            asm_code = compiler_rsp.split("header")[1].split("```")
+            if len(asm_code) > 0:
+                asm_code = asm_code[0]
+            logging.info(f"asm code: \n{asm_code}")
             with open(out, "w") as f:
-                f.write(x86_code)
-            if generate_binary:
-                ret = subprocess.run(["gcc", out, "-c"])
-                if ret.returncode != 0:
-                    error_output = ret.stderr
-                    normal_output = ret.stdout
-                    logging.warning("Failed to compile the x86 code!")
-                    logging.info(error_output)
-                    logging.info(normal_output)
-                else:
-                    logging.info("Succeed to compile the x86 code!")
+                f.write(asm_code)
         else:
             logging.warning("Failed to find the x86 code!")

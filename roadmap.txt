@@ -1,0 +1,69 @@
+Title: LLM for agile DSA-compilation.
+
+Target Problem:
+agile domain application adaptation to DSAs.
+
+Goal:
+with the aid of LLMs, shorten the adaptation time to DSAs from months to days.
+
+Motivations:
+1. DSAs are evolving fast, while compiler adaptation to DSA design is significantly slower.
+Many DSA designers don't target real applications but to specific synthesized cases for performance.
+And they bypassed compilers as well, to accelerate the development of DSAs.
+2. The number of compilers and domain-specific languages has exploded.
+For a compiler to adapt a new DSA targeting a specific application, we don't need to develop a new backend,
+but to develop several intrinsics related, which is the trend now. But still takes months to develop:
+A frontend that support using intrinsics to directly program using DSA instructions.
+A midend that auto convert specific patterns into DSA instructions with some newly developed compiler passes.
+A backend that really generates the DSA instructions.
+3. For DSA developers, to write an application using the newly proposed DSAs, there are two major types:
+3.1: Directly program using DSA related DSLs, which is usually associated with simulator designs, 
+usually require expert knowledge in both DSAs and application to obtain optimal performance.
+3.2: Pattern matching framework, using pattern matching to simplify redundant code pattern generation in 3.1.
+4. We target to leverage LLMs into the above process, by proposing new methodology 3.3:
+Using LLMs as a DSA compiler: interactively act with DSA designers, using LLMs to perform 
+ISA understanding, program profiling, device splitting and device code generation.
+We propose both corase-grainedly fast solution by using LLM to directly translate device code,
+and fine-grainedly using LLM to develop cost model, pattern matching tool, 
+and schedule-then-match style tensorization codegen.
+
+Configurations:
+Interface between DSA hardware design and compiler design, a.k.a ISA.
+Typically, we have roughly three forms and two coupling level.
+1. domain specific languages: like python library, C++ library to call the DSA instructions.
+2. hardened functions: funtion calling to these functions are mapped to DSAs through simulators.
+3. assembly instructions: generate assembly instructions directly specified by ISA manual.
+Coupling level(majorly targeting the 3rd form):
+1. loosely coupling: DSAs are connected to CPU through external PCIe connection, therefore,
+instructions are executed in different device, device code and CPU code are split up clearly.
+2. closely couling: DSAs are internally extended inside a CPU, therefore, all instructions are all executed by CPU,
+allowing mixed instructions execution.
+
+
+Method:
+1. ISA manual parsing, learn the programming model(RQ1: can LLM build a model from ISA manual?)
+2. DSA instruction codegen, three generation strategies: (RQ2: can LLM map arbitrary program into DSA instructions)
++a code translation approach from source code to DSA-designed DSL
++a coarse-grained direct LLM translation, for hardened functions and simple patterns using assembly instructions
++a fine-grained pattern-matching translation, for more complicated assembly instructions
+3. cost model design, (RQ3: can LLM understand beyond code generation, but the system model and related constraints.)
+4. unittest-driven verification + error-feedback correction(RQ4: how to answer LLMs' generation quality results, how to improve it.)
+
+All methods bypass existing compilers, require no modification to them, therefore, serve as an agile path.
+
+Potential Extension:
+1. Extensible to solvers, achieving optimal in the constrained scope.
+2. Extensible to a unified DSL for DSA codegen. Allowing rule-based + LLM-based mixture for both accuracy and flexibility.
+
+Evaluations:
+Applications:
+1. 3dgs.
+2. DSLs for DNN applications(resnet, mobilenet), simulator based on python DSL(Intel).
+3. AVX, RISCV V for closely coupling code generation. Using General purpose benchmark for evaluation?
+4. RISCV M extension for loosely coupling code generation, use Llama for evaluation.
+Metrics:
+1. translation accuracy, pass@1, pass@5, pass@10, etc. Can add error-feedback in it.
+2. time to serve, how soon can we build a pipeline for a new DSA.
+3. performance gain(based on cost model), can compare with solver-based optimal or hand-written(expert) optimal.
+4. real performance gain(based on real simulator execution), need simulator support.
+
